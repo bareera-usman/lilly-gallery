@@ -1,48 +1,347 @@
-
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>Image Test</title>
+  <title>150 Years of Lilly</title>
   <style>
-    body { background:#111; color:#fff; font-family:sans-serif; padding:20px; }
-    img  { width:300px; height:200px; object-fit:cover; border:2px solid #c0392b; margin:8px; }
-    .item { display:inline-block; text-align:center; vertical-align:top; }
-    p { font-size:11px; color:#aaa; margin:4px 0; width:300px; word-break:break-all; }
-    .ok  { color:#4f4; }
-    .err { color:#f44; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#000;overflow:hidden;font-family:Georgia,serif}
+    canvas{display:block}
+
+    #splash{
+      position:fixed;inset:0;z-index:100;
+      background:radial-gradient(ellipse at center,#1a0505 0%,#000 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      transition:opacity 1.2s ease;
+    }
+    #splash.fade{opacity:0;pointer-events:none}
+    .logo-line{width:120px;height:2px;background:linear-gradient(90deg,transparent,#c0392b,transparent);margin:18px auto}
+    #splash h1{color:#f0d8c8;font-size:clamp(1.8em,4vw,3.2em);letter-spacing:.12em;text-align:center;line-height:1.3}
+    #splash h2{color:#8b3a3a;font-size:clamp(.9em,2vw,1.3em);letter-spacing:.3em;text-transform:uppercase;margin-top:.4em}
+    #splash p{color:#a08070;font-size:.95em;margin-top:2em;letter-spacing:.05em}
+    #enter-btn{
+      margin-top:2.5em;padding:14px 48px;
+      background:transparent;border:1.5px solid #c0392b;
+      color:#f0d8c8;font-family:Georgia,serif;font-size:1.1em;letter-spacing:.2em;
+      cursor:pointer;transition:all .3s;text-transform:uppercase;
+    }
+    #enter-btn:hover{background:#c0392b;color:#fff}
+
+    #hud{
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      color:#c8a090;font-size:.8em;letter-spacing:.08em;opacity:.6;
+      pointer-events:none;text-align:center;line-height:1.8;
+      text-shadow:0 1px 6px #000;
+    }
+
+    #caption-box{
+      position:fixed;bottom:70px;left:50%;transform:translateX(-50%);
+      background:rgba(10,0,0,.85);border:1px solid #5a1a1a;
+      color:#f0d8c8;padding:14px 28px;max-width:520px;text-align:center;
+      font-size:.95em;letter-spacing:.04em;line-height:1.6;
+      opacity:0;transition:opacity .5s;pointer-events:none;
+      border-radius:2px;backdrop-filter:blur(4px);
+    }
+    #caption-box.show{opacity:1}
+    #caption-title{font-size:1.1em;color:#c8a090;margin-bottom:4px}
+
+    #progress-bar{
+      position:fixed;top:0;left:0;height:2px;background:#c0392b;
+      width:0%;transition:width .3s;z-index:200;
+    }
   </style>
 </head>
 <body>
-  <h2 style="color:#c8a090">Image Load Test — 150 Years of Lilly</h2>
-  <p style="color:#aaa">Each image below should show your photo. If you see a broken icon, that file has a problem.</p>
-  <div id="gallery"></div>
-  <script>
-    const files = [
-      'images/01-title.jpg',
-      'images/02-construction.jpg',
-      'images/03-mcalpine-1938.jpg',
-      'images/04-warehouse.jpg',
-      'images/05-computer.jpg',
-      'images/06-carnival.jpg',
-      'images/07-gazette-1989.jpg',
-      'images/08-hazmat-lab.jpg',
-      'images/09-team-photo.jpg',
-      'images/10-queens-award.jpg'
-    ];
-    const g = document.getElementById('gallery');
-    files.forEach(src => {
-      const div = document.createElement('div');
-      div.className = 'item';
-      const img = document.createElement('img');
-      img.src = src;
-      const status = document.createElement('p');
-      img.onload  = () => { status.textContent = '✅ ' + src; status.className='ok'; };
-      img.onerror = () => { status.textContent = '❌ FAILED: ' + src; status.className='err'; };
-      div.appendChild(img);
-      div.appendChild(status);
-      g.appendChild(div);
-    });
-  </script>
+
+<div id="progress-bar"></div>
+
+<div id="splash">
+  <div class="logo-line"></div>
+  <h1>150 Years of Lilly</h1>
+  <h2>Basingstoke &nbsp;·&nbsp; 1876 – 2026</h2>
+  <div class="logo-line"></div>
+  <p>An immersive journey through our history</p>
+  <button id="enter-btn" onclick="enterGallery()">Enter Gallery</button>
+</div>
+
+<div id="hud">Click &amp; drag to look &nbsp;|&nbsp; W A S D to walk &nbsp;|&nbsp; Hover a photo to learn more</div>
+<div id="caption-box"><div id="caption-title"></div><div id="caption-text"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────
+const PHOTOS = [
+  {file:'images/01-title.jpg',       title:'150 Years of Lilly',                   desc:'A century and a half of science, dedication and innovation — all beginning right here in Basingstoke.',                wall:'N', along:0,    w:5.5, h:3.2},
+  {file:'images/03-mcalpine-1938.jpg',title:'McAlpine\'s Contract, 1938',           desc:'The foundations of our Basingstoke home being laid. McAlpine broke ground on the site that would become the heart of Lilly UK.',  wall:'E', along:-4.5, w:4.2, h:2.8},
+  {file:'images/02-construction.jpg', title:'Building a Future',                    desc:'Steel, concrete and ambition — the early construction of a facility that would go on to serve millions of patients worldwide.',      wall:'E', along:1.5,  w:4.2, h:2.8},
+  {file:'images/10-queens-award.jpg', title:'Queen\'s Award for Exports',           desc:'A landmark moment of national recognition — Lilly Basingstoke celebrated for its outstanding contribution to British exports.',    wall:'E', along:7,    w:4.2, h:2.8},
+  {file:'images/04-warehouse.jpg',    title:'Warehouse & Distribution',             desc:'Rows of Distalgesic and other vital medicines, ready to reach patients across the country. Precision logistics at scale.',           wall:'S', along:5.5,  w:4.2, h:2.8},
+  {file:'images/05-computer.jpg',     title:'Technology & Innovation — 1980s',     desc:'An early adopter. Lilly Basingstoke embraced computing long before it was commonplace, driving efficiency in pharmaceutical operations.', wall:'S', along:-0.5, w:4.2, h:2.8},
+  {file:'images/06-carnival.jpg',     title:'Lilly in the Community',              desc:'Lilly has always been more than a company — it\'s a neighbour. Our float at the Basingstoke carnival, celebrating the town we call home.', wall:'S', along:-6,   w:4.2, h:2.8},
+  {file:'images/07-gazette-1989.jpg', title:'Basingstoke Gazette, 1989',           desc:'"Lilly Celebrates 50 Years in the Town." The local paper marks our golden anniversary — a milestone that felt personal to the whole community.', wall:'W', along:7,    w:4.2, h:3.2},
+  {file:'images/08-hazmat-lab.jpg',   title:'Pharmaceutical Manufacturing',        desc:'Specialist containment. Exceptional care. Our teams in controlled environments, ensuring the highest standards of safety and quality.', wall:'W', along:1.5,  w:4.2, h:2.8},
+  {file:'images/09-team-photo.jpg',   title:'The People of Lilly Basingstoke',    desc:'The real story of 150 years is the people. Scientists, engineers, administrators — every one of them part of something bigger.',      wall:'W', along:-4.5, w:4.2, h:2.8},
+];
+
+// ── SCENE ─────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled = false;
+document.body.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0202);
+scene.fog = new THREE.Fog(0x0a0202, 15, 35);
+
+const camera = new THREE.PerspectiveCamera(68, innerWidth/innerHeight, 0.1, 60);
+camera.position.set(0,1.65,3);
+
+// ── ROOM ──────────────────────────────────────────────────────────────────
+const ROOM = 11;
+
+// Floor — dark marble-ish
+const floorTex = (() => {
+  const c = document.createElement('canvas'); c.width=512; c.height=512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle='#110808'; ctx.fillRect(0,0,512,512);
+  ctx.strokeStyle='#1e0e0e'; ctx.lineWidth=1;
+  for(let i=0;i<512;i+=64){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,512);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(512,i);ctx.stroke();}
+  return new THREE.CanvasTexture(c);
+})();
+floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+floorTex.repeat.set(6,6);
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(ROOM*2, ROOM*2),
+  new THREE.MeshBasicMaterial({map:floorTex})
+);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
+
+// Ceiling
+scene.add(Object.assign(new THREE.Mesh(
+  new THREE.PlaneGeometry(ROOM*2,ROOM*2),
+  new THREE.MeshBasicMaterial({color:0x060202})
+), {rotation:{x:Math.PI/2,y:0,z:0}, position:{x:0,y:5.2,z:0}}));
+
+// Walls
+const wallMat = new THREE.MeshBasicMaterial({color:0x120606, side:THREE.BackSide});
+const wallBox = new THREE.Mesh(new THREE.BoxGeometry(ROOM*2,5.4,ROOM*2), wallMat);
+wallBox.position.set(0,2.7,0);
+scene.add(wallBox);
+
+// Wall panels (darker strips behind each photo)
+function addPanel(wall, along){
+  const g = new THREE.PlaneGeometry(4.8, 3.6);
+  const m = new THREE.MeshBasicMaterial({color:0x0d0303});
+  const mesh = new THREE.Mesh(g,m);
+  const D=ROOM-0.12, Y=2.5;
+  if(wall==='N'){mesh.position.set(along,Y,-D);}
+  if(wall==='S'){mesh.position.set(along,Y, D); mesh.rotation.y=Math.PI;}
+  if(wall==='E'){mesh.position.set( D,Y,along); mesh.rotation.y=-Math.PI/2;}
+  if(wall==='W'){mesh.position.set(-D,Y,along); mesh.rotation.y= Math.PI/2;}
+  scene.add(mesh);
+}
+PHOTOS.forEach(p=>addPanel(p.wall,p.along));
+
+// Gold trim lines
+function addTrim(wall){
+  const g = new THREE.BoxGeometry(wall==='NS'?ROOM*2:0.04, 0.05, wall==='NS'?0.04:ROOM*2);
+  const m = new THREE.MeshBasicMaterial({color:0x6b1111});
+  [-ROOM, ROOM].forEach(pos=>{
+    const mesh = new THREE.Mesh(g,m);
+    if(wall==='NS') mesh.position.set(0,5.15,pos);
+    else            mesh.position.set(pos,5.15,0);
+    scene.add(mesh);
+    const mesh2 = mesh.clone();
+    mesh2.position.y = 0.5;
+    scene.add(mesh2);
+  });
+}
+addTrim('NS'); addTrim('EW');
+
+// ── SPOT LIGHTS on each photo ──────────────────────────────────────────────
+function addSpot(x,y,z,tx,ty,tz){
+  const s = new THREE.SpotLight(0xfff5e0, 2.5, 12, Math.PI/7, 0.4);
+  s.position.set(x,y,z);
+  s.target.position.set(tx,ty,tz);
+  scene.add(s); scene.add(s.target);
+}
+// ceiling spots aimed at each wall
+PHOTOS.forEach(p=>{
+  const D=ROOM-0.5, Y=2.5;
+  let tx,ty,tz;
+  if(p.wall==='N'){tx=p.along;ty=Y;tz=-D; addSpot(p.along,5,-D+3,tx,ty,tz);}
+  if(p.wall==='S'){tx=p.along;ty=Y;tz= D; addSpot(p.along,5, D-3,tx,ty,tz);}
+  if(p.wall==='E'){tx= D;ty=Y;tz=p.along; addSpot(D-3,5,p.along,tx,ty,tz);}
+  if(p.wall==='W'){tx=-D;ty=Y;tz=p.along; addSpot(-D+3,5,p.along,tx,ty,tz);}
+});
+scene.add(new THREE.AmbientLight(0xfff0e0, 0.35));
+
+// ── CENTRE PLINTH ──────────────────────────────────────────────────────────
+const plinthGroup = new THREE.Group();
+plinthGroup.position.set(0,0,1);
+scene.add(plinthGroup);
+
+[{r:.5,h:1.0,y:.5,c:0x1a0606},{r:.56,h:.05,y:1.02,c:0x8b1a1a},{r:.44,h:.05,y:1.06,c:0x6b1111}].forEach(o=>{
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,o.h,48), new THREE.MeshBasicMaterial({color:o.c}));
+  m.position.y=o.y; plinthGroup.add(m);
+});
+
+// Canvas text on plinth
+function canvasText(lines, w, h, size, color='#f0d0b0', bg='rgba(0,0,0,0)'){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle=color; ctx.textAlign='center'; ctx.textBaseline='middle';
+  lines.forEach((l,i)=>{
+    ctx.font=l.font||`${size}px Georgia`;
+    ctx.fillStyle=l.color||color;
+    ctx.fillText(l.text, w/2, h/2 + (i-(lines.length-1)/2)*(size*1.4));
+  });
+  return new THREE.CanvasTexture(c);
+}
+
+const plinthTex = canvasText([
+  {text:'1876 — 2026',font:'bold 52px Georgia',color:'#f0d0b0'},
+  {text:'150 YEARS',font:'36px Georgia',color:'#c0392b'},
+  {text:'OF LILLY',font:'28px Georgia',color:'#a08060'},
+],512,256,44);
+const plinthPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.9,0.45),
+  new THREE.MeshBasicMaterial({map:plinthTex,transparent:true})
+);
+plinthPlane.position.set(0,1.35,-0.42);
+plinthGroup.add(plinthPlane);
+
+// ── PHOTO MESHES ───────────────────────────────────────────────────────────
+const loader = new THREE.TextureLoader();
+const photoMeshes = [];
+let loaded=0;
+const bar = document.getElementById('progress-bar');
+
+PHOTOS.forEach((p,i)=>{
+  loader.load(p.file, tex=>{
+    tex.encoding = THREE.LinearEncoding;
+    tex.minFilter = THREE.LinearFilter;
+
+    const mat = new THREE.MeshBasicMaterial({map:tex, side:THREE.FrontSide});
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.h), mat);
+
+    const D=ROOM-0.1, Y=2.6;
+    if(p.wall==='N'){mesh.position.set(p.along,Y,-D);}
+    if(p.wall==='S'){mesh.position.set(p.along,Y, D); mesh.rotation.y=Math.PI;}
+    if(p.wall==='E'){mesh.position.set( D,Y,p.along); mesh.rotation.y=-Math.PI/2;}
+    if(p.wall==='W'){mesh.position.set(-D,Y,p.along); mesh.rotation.y= Math.PI/2;}
+
+    mesh.userData = {title:p.title, desc:p.desc};
+    scene.add(mesh);
+    photoMeshes.push(mesh);
+
+    // Label below photo
+    const lTex = canvasText([{text:p.title}],800,72,28,'#c8a090');
+    const lMesh = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.w*72/800), new THREE.MeshBasicMaterial({map:lTex,transparent:true}));
+    if(p.wall==='N'){lMesh.position.set(p.along, Y-p.h/2-.22, -D+.01);}
+    if(p.wall==='S'){lMesh.position.set(p.along, Y-p.h/2-.22,  D-.01); lMesh.rotation.y=Math.PI;}
+    if(p.wall==='E'){lMesh.position.set( D-.01,  Y-p.h/2-.22, p.along); lMesh.rotation.y=-Math.PI/2;}
+    if(p.wall==='W'){lMesh.position.set(-D+.01,  Y-p.h/2-.22, p.along); lMesh.rotation.y= Math.PI/2;}
+    scene.add(lMesh);
+
+    loaded++;
+    bar.style.width = (loaded/PHOTOS.length*100)+'%';
+  });
+});
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────
+let drag=false, lx=0, ly=0, yaw=Math.PI, pitch=0;
+renderer.domElement.addEventListener('mousedown', e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+window.addEventListener('mouseup',()=>drag=false);
+window.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  yaw  -=(e.clientX-lx)*.003; pitch-=(e.clientY-ly)*.003;
+  pitch=Math.max(-1.1,Math.min(1.1,pitch));
+  lx=e.clientX;ly=e.clientY;
+});
+renderer.domElement.addEventListener('touchstart',e=>{drag=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;},{passive:true});
+window.addEventListener('touchend',()=>drag=false);
+window.addEventListener('touchmove',e=>{
+  if(!drag)return;
+  yaw  -=(e.touches[0].clientX-lx)*.003; pitch-=(e.touches[0].clientY-ly)*.003;
+  pitch=Math.max(-1.1,Math.min(1.1,pitch));
+  lx=e.touches[0].clientX;ly=e.touches[0].clientY;
+},{passive:true});
+
+const keys={};
+window.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
+window.addEventListener('keyup',  e=>keys[e.key.toLowerCase()]=false);
+
+// ── RAYCASTER for hover captions ───────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let hovered = null;
+window.addEventListener('mousemove', e=>{
+  mouse.x=(e.clientX/innerWidth)*2-1;
+  mouse.y=-(e.clientY/innerHeight)*2+1;
+});
+
+// ── RESIZE ────────────────────────────────────────────────────────────────
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+// ── ENTER ─────────────────────────────────────────────────────────────────
+function enterGallery(){
+  document.getElementById('splash').classList.add('fade');
+  setTimeout(()=>document.getElementById('splash').style.display='none',1300);
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────
+const dir=new THREE.Vector3();
+const euler=new THREE.Euler(0,0,0,'YXZ');
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  euler.y=yaw; euler.x=pitch;
+  camera.rotation.copy(euler);
+
+  const spd=0.055;
+  dir.set(0,0,0);
+  if(keys['w']||keys['arrowup'])   dir.z=-1;
+  if(keys['s']||keys['arrowdown']) dir.z= 1;
+  if(keys['a']||keys['arrowleft']) dir.x=-1;
+  if(keys['d']||keys['arrowright'])dir.x= 1;
+  if(dir.length()){
+    dir.normalize().applyEuler(new THREE.Euler(0,yaw,0));
+    camera.position.addScaledVector(dir,spd);
+    camera.position.x=Math.max(-ROOM+1,Math.min(ROOM-1,camera.position.x));
+    camera.position.z=Math.max(-ROOM+1,Math.min(ROOM-1,camera.position.z));
+  }
+
+  // hover detection
+  if(photoMeshes.length){
+    raycaster.setFromCamera(mouse,camera);
+    const hits=raycaster.intersectObjects(photoMeshes);
+    const cap=document.getElementById('caption-box');
+    if(hits.length){
+      const d=hits[0].object.userData;
+      if(hovered!==d.title){
+        hovered=d.title;
+        document.getElementById('caption-title').textContent=d.title;
+        document.getElementById('caption-text').textContent=d.desc;
+        cap.classList.add('show');
+      }
+    } else {
+      hovered=null;
+      cap.classList.remove('show');
+    }
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+</script>
 </body>
 </html>
