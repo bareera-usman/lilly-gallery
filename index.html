@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Image Test</title>
+  <style>
+    body { background:#111; color:#fff; font-family:sans-serif; padding:20px; }
+    img  { width:300px; height:200px; object-fit:cover; border:2px solid #c0392b; margin:8px; }
+    .item { display:inline-block; text-align:center; vertical-align:top; }
+    p { font-size:11px; color:#aaa; margin:4px 0; width:300px; word-break:break-all; }
+    .ok  { color:#4f4; }
+    .err { color:#f44; }
+  </style>
+</head>
+<body>
+  <h2 style="color:#c8a090">Image Load Test — 150 Years of Lilly</h2>
+  <p style="color:#aaa">Each image below should show your photo. If you see a broken icon, that file has a problem.</p>
+  <div id="gallery"></div>
+  <script>
+    const files = [
+      'images/01-title.jpg',
+      'images/02-construction.jpg',
+      'images/03-mcalpine-1938.jpg',
+      'images/04-warehouse.jpg',
+      'images/05-computer.jpg',
+      'images/06-carnival.jpg',
+      'images/07-gazette-1989.jpg',
+      'images/08-hazmat-lab.jpg',
+      'images/09-team-photo.jpg',
+      'images/10-queens-award.jpg'
+    ];
+    const g = document.getElementById('gallery');
+    files.forEach(src => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      const img = document.createElement('img');
+      img.src = src;
+      const status = document.createElement('p');
+      img.onload  = () => { status.textContent = '✅ ' + src; status.className='ok'; };
+      img.onerror = () => { status.textContent = '❌ FAILED: ' + src; status.className='err'; };
+      div.appendChild(img);
+      div.appendChild(status);
+      g.appendChild(div);
+    });
+  </script>
+</body>
+</html>
